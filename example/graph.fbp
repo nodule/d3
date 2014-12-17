@@ -1,11 +1,21 @@
 title: Dagre D3 Graph
 
 Graph(d3/dagre)
+WsClient(websocket/client)
+Log(console/log)
+BodyEl(dom/querySelector)
 
 # {} -> @options Graph
-'body'           -> selector BodyEl(dom/querySelector)
+'body'           -> selector BodyEl
 BodyEl selection -> element Graph
 
+'ws://localhost:9000' -> url WsClient
+
+WsClient message -> msg Log
+WsClient open    -> msg Log
+WsClient close   -> msg Log
+WsClient error   -> msg Log
+
 # ok, still not done, need to make chix-runtime into nodes.
-setNode Graph
-setEdge Graph
+#setNode Graph
+#setEdge Graph

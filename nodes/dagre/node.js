@@ -31,8 +31,8 @@ on.input.element = function(data) {
   state.g = document.createElement('g');
   s.appendChild(state.g);
   data.appendChild(s);
-  var svg = d3.select(s);
-  state.inner = svg.select(state.g);
+  state.svg = d3.select(s);
+  state.inner = state.svg.select(s.firstChild);
 
   state.render = new dagreD3.render();
   state.graph = new dagreD3.graphlib.Graph();

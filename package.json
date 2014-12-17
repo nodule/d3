@@ -20,7 +20,9 @@
     "dagre-d3": "^0.3.3"
   },
   "devDependencies": {
-    "chit": "0.x.x"
+    "chit": "0.x.x",
+    "chix-flow": "^0.10.8",
+    "chix-monitor-npmlog": "0.0.5"
   },
   "chix": {
     "name": "d3",
