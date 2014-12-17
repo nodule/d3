@@ -144,8 +144,10 @@
         "output": {}
       },
       "dependencies": {
-        "d3": "3.x.x",
-        "dagre-d3": "0.x.x"
+        "npm": {
+          "d3": "3.x.x",
+          "dagre-d3": "0.x.x"
+        }
       },
       "phrases": {
         "active": "Greating dagre-d3 graph"
