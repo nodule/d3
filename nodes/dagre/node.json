@@ -18,6 +18,17 @@
         "title": "Element",
         "type": "HTMLElement"
       },
+      "options": {
+        "title": "Options",
+        "type": "object",
+        "properties": {
+          "nodesep": {"type": "number","default": 70},
+          "ranksep": {"type": "number","default": 50},
+          "rankdir": {"type": "string", "enum": ["LR","TB"],"default": "TB"},
+          "marginx": {"type": "number","default": 20},
+          "marginy": {"type": "number","default": 20}
+        }
+      },
       "setNode": {
         "title": "Add Node",
         "type": "object",
