@@ -2,14 +2,10 @@ title: Dagre D3 Graph
 
 Graph(d3/dagre)
 
-# I want to use fbpx serve now, which will just serve an empty
-# document body or else serve a layout template.
-# Note also I could but the chix-runtime proxy into the cloud
-# attach flowhub to it, and let this be the visualization.
+# {} -> @options Graph
+'body'           -> selector BodyEl(dom/querySelector)
+BodyEl selection -> element Graph
 
-# which means this part should talk to the noflo protocol.
-# which could be done useing the chix-runtime client side thing.
-
-element Graph
+# ok, still not done, need to make chix-runtime into nodes.
 setNode Graph
 setEdge Graph
