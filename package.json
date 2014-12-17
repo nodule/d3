@@ -1,0 +1,29 @@
+{
+  "name": "nodule-d3",
+  "description": "D3 for Chiχ",
+  "author": "Rob Halff <rob.halff@gmail.com>",
+  "version": "0.0.2",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nodule/d3.git"
+  },
+  "engines": {
+    "node": ">=0.6.0"
+  },
+  "main": "x",
+  "scripts": {
+    "test": "chit -r"
+  },
+  "dependencies": {
+    "d3": "^3.5.2",
+    "dagre-d3": "^0.3.3"
+  },
+  "devDependencies": {
+    "chit": "0.x.x"
+  },
+  "chix": {
+    "name": "d3",
+    "color": "rgb(136,0,35)"
+  }
+}

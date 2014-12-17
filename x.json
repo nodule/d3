@@ -1,0 +1,161 @@
+{
+  "name": "d3",
+  "description": "D3 for Chiχ",
+  "version": "0.0.2",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nodule/d3.git"
+  },
+  "dependencies": {
+    "d3": "^3.5.2",
+    "dagre-d3": "^0.3.3"
+  },
+  "nodes": [
+    {
+      "ports": {
+        "input": {
+          "element": {
+            "title": "Element",
+            "type": "HTMLElement"
+          },
+          "setNode": {
+            "title": "Add Node",
+            "type": "object",
+            "async": true,
+            "properties": {
+              "id": {
+                "type": [
+                  "number",
+                  "string"
+                ]
+              },
+              "name": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              }
+            }
+          },
+          "removeNode": {
+            "title": "Remove Node",
+            "type": "object",
+            "async": true,
+            "properties": {
+              "id": {
+                "type": [
+                  "number",
+                  "string"
+                ]
+              },
+              "pid": {
+                "type": [
+                  "number",
+                  "string"
+                ]
+              },
+              "anyOf": [
+                {
+                  "required": [
+                    "id"
+                  ]
+                },
+                {
+                  "required": [
+                    "pid"
+                  ]
+                }
+              ]
+            }
+          },
+          "removeEdge": {
+            "title": "Remove Edge",
+            "type": "object",
+            "async": true,
+            "properties": {
+              "id": {
+                "type": [
+                  "number",
+                  "string"
+                ]
+              },
+              "pid": {
+                "type": [
+                  "number",
+                  "string"
+                ]
+              },
+              "anyOf": [
+                {
+                  "required": [
+                    "id"
+                  ]
+                },
+                {
+                  "required": [
+                    "pid"
+                  ]
+                }
+              ]
+            }
+          },
+          "setEdge": {
+            "title": "Set Edge",
+            "type": "object",
+            "async": true,
+            "properties": {
+              "source": {
+                "title": "Source",
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": [
+                      "string",
+                      "number"
+                    ]
+                  },
+                  "port": {
+                    "type": [
+                      "string"
+                    ]
+                  }
+                }
+              },
+              "target": {
+                "title": "Target",
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": [
+                      "string",
+                      "number"
+                    ]
+                  },
+                  "port": {
+                    "type": [
+                      "string"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "output": {}
+      },
+      "dependencies": {
+        "d3": "3.x.x",
+        "dagre-d3": "0.x.x"
+      },
+      "phrases": {
+        "active": "Greating dagre-d3 graph"
+      },
+      "description": "Dagre D3",
+      "async": true,
+      "ns": "d3",
+      "name": "dagre",
+      "fn": "state.zoom = d3.behavior.zoom().on('zoom', function() {\n  state.inner.attr('transform', 'translate(' + d3.event.translate + ')' +\n    'scale(' + d3.event.scale + ')');\n});\n\nstate.scaleToFit = function(isUpdate) {\n\n // Zoom and scale to fit\n var zoomScale = state.zoom.scale();\n var graphWidth = state.g.graph().width + 80;\n var graphHeight = state.g.graph().height + 40;\n var width = parseInt(state.svg.style('width').replace(/px/, ''));\n var height = parseInt(state.svg.style('height').replace(/px/, ''));\n zoomScale = Math.min(width / graphWidth, height / graphHeight);\n\n var translate = [(width/2) - ((graphWidth*zoomScale)/2), (height/2) - ((graphHeight*zoomScale)/2)];\n state.zoom.translate(translate);\n state.zoom.scale(zoomScale);\n state.zoom.event(isUpdate ? state.svg.transition().duration(500) : d3.select(\"svg\"));\n\n};\n\non.input.start = function() {\n  state.svg.call(state.zoom);\n};\n\n// parent html element\non.input.element = function(data) {\n  // re-init entire graph.\n  var s = document.createElement('svg');\n  state.g = document.createElement('g');\n  s.appendChild(state.g);\n  data.appendChild(s);\n  var svg = d3.select(s);\n  state.inner = svg.select(state.g);\n\n  state.render = new dagreD3.render();\n  state.graph = new dagreD3.graphlib.Graph();\n  state.graph.setGraph(input.options);\n};\n\n// could `stream` the nodes through\n// but would be weird I guess. instead of listening you\n// will feed the new status each and every time.\non.input.setNode = function(node) {\n // not sure..\n state.g.setNode(data.id, {\n   labelType: \"html\",\n   label: html,\n   rx: 5,\n   ry: 5,\n   padding: 0,\n   class: node.status\n });\n state.inner.call(state.render, state.g);\n state.scaleToFit();\n};\n\non.input.setEdge = function(link) {\n  state.g.setEdge(link.source.id, link.target.id, {\n    label: link.source.port + '/' + link.target.port,\n    width: 40\n  });\n  state.inner.call(state.render, state.g);\n  state.scaleToFit();\n};\n\n// todo: api incorrect , will not work..\non.input.removeEdge = function(link) {\n  state.g.removeEdge(link);\n};\n// how to remove by pid or id..\non.input.removeNode = function(node) {\n  state.g.removeNode(node.pid || node.id);\n};\n"
+    }
+  ],
+  "twigs": []
+}

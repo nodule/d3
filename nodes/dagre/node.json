@@ -1,0 +1,103 @@
+{
+  "name": "dagre",
+  "ns": "d3",
+  "async": true,
+  "description": "Dagre D3",
+  "phrases": {
+    "active": "Greating dagre-d3 graph"
+  },
+  "dependencies": {
+    "d3": "3.x.x",
+    "dagre-d3": "0.x.x"
+  },
+  "ports": {
+    "input": {
+      "element": {
+        "title": "Element",
+        "type": "HTMLElement"
+      },
+      "setNode": {
+        "title": "Add Node",
+        "type": "object",
+        "async": true,
+        "properties": {
+          "id": {
+            "type": ["number","string"]
+          },
+          "name": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      },
+      "removeNode": {
+        "title": "Remove Node",
+        "type": "object",
+        "async": true,
+        "properties": {
+          "id": {
+            "type": ["number","string"]
+          },
+          "pid": {
+            "type": ["number","string"]
+          },
+          "anyOf": [
+            {"required": ["id"]},
+            {"required": ["pid"]}
+          ]
+        }
+      },
+      "removeEdge": {
+        "title": "Remove Edge",
+        "type": "object",
+        "async": true,
+        "properties": {
+          "id": {
+            "type": ["number","string"]
+          },
+          "pid": {
+            "type": ["number","string"]
+          },
+          "anyOf": [
+            {"required": ["id"]},
+            {"required": ["pid"]}
+          ]
+        }
+      },
+      "setEdge": {
+        "title": "Set Edge",
+        "type": "object",
+        "async": true,
+        "properties": {
+          "source": {
+            "title": "Source",
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": ["string","number"]
+              },
+              "port": {
+                "type": ["string"]
+              }
+            }
+          },
+          "target": {
+            "title": "Target",
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": ["string","number"]
+              },
+              "port": {
+                "type": ["string"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "output": {}
+  }
+}
