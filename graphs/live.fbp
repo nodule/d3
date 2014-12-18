@@ -1,0 +1,53 @@
+title: Dagre D3 Graph
+
+#Graph(d3/dagre)
+WsClient(websocket/client)
+Log(console/log)
+ErrorLog(console/error)
+BodyEl(dom/querySelector)
+
+# {} -> @options Graph
+'body'           -> selector BodyEl
+#BodyEl selection -> element Graph
+
+'ws://localhost:9000/' -> url WsClient
+'noflo' -> protocol WsClient
+
+'Connected to websocket'     -> @msg OpenMsg(console/log)
+'Disonnected from websocket' -> @msg CloseMsg(console/log)
+
+WsClient message -> msg Log
+WsClient open    -> msg OpenMsg
+WsClient close   -> msg CloseMsg
+WsClient error   -> msg ErrorLog
+
+{
+  "protocol": "runtime",
+  "command": "getruntime",
+  "payload": {
+  }
+} -> send WsClient
+
+Router(object/router)
+
+'payload.graph' -> @path getGraph(data/pick)
+
+# Feed every message to the router
+WsClient message -> in Router
+
+# didn't do the multimatch thing yet..
+
+# Subscribe on runtime message
+["command","runtime"] -> [0] route Router
+Router out [0] -> in getGraph out -> msg Log
+getGraph out   -> in Subscribe out -> send WsClient
+
+# Create Subscribe message
+{
+  "protocol": "graph",
+  "command": "subscribe"
+} -> @object Subscribe(object/set)
+'payload.graph' -> @path Subscribe
+
+#setNode Graph
+#setEdge Graph
