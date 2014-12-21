@@ -1246,7 +1246,7 @@ ConnectionMap.prototype.toJSON = function() {
 
 module.exports = ConnectionMap;
 
-},{"./setting":24,"util":6}],8:[function(require,module,exports){
+},{"./setting":25,"util":6}],8:[function(require,module,exports){
 'use strict';
 
 var Packet = require('./packet');
@@ -2090,12 +2090,10 @@ Actor.prototype.__input = function(link, p) {
       targetNode.error(ret);
 
       self.ioHandler.reject(ret, link, p);
-
     } else if (ret === false) {
-
       // `soft reject`
       self.ioHandler.reject(ret, link, p);
-
+      //self.ioHandler.queueManager.requeue(ret, link, p);
     } else {
 
       self.ioHandler.accept(link, p);
@@ -3049,7 +3047,7 @@ Actor.prototype.hasParent = function() {
 
 module.exports = Actor;
 
-},{"../lib/context/defaultProvider":10,"../lib/io/mapHandler":12,"../lib/multisort":14,"../lib/process/defaultManager":19,"./connector":9,"./flow":11,"./link":13,"./node":15,"./node/polymer":17,"./packet":18,"./run":21,"./validate":25,"events":1,"util":6,"uuid":42}],9:[function(require,module,exports){
+},{"../lib/context/defaultProvider":10,"../lib/io/mapHandler":12,"../lib/multisort":14,"../lib/process/defaultManager":20,"./connector":9,"./flow":11,"./link":13,"./node":15,"./node/polymer":17,"./packet":18,"./run":22,"./validate":26,"events":1,"util":6,"uuid":43}],9:[function(require,module,exports){
 'use strict';
 
 var util    = require('util');
@@ -3155,7 +3153,7 @@ Connector.prototype.toJSON = function() {
 
 module.exports = Connector;
 
-},{"./setting":24,"util":6}],10:[function(require,module,exports){
+},{"./setting":25,"util":6}],10:[function(require,module,exports){
 'use strict';
 
 /**
@@ -4555,7 +4553,7 @@ Flow.prototype.hasParent = function() {
 
 module.exports = Flow;
 
-},{"./actor":8,"./io/mapHandler":12,"./link":13,"./packet":18,"./process/defaultManager":19,"./validate":25,"util":6}],12:[function(require,module,exports){
+},{"./actor":8,"./io/mapHandler":12,"./link":13,"./packet":18,"./process/defaultManager":20,"./validate":26,"util":6}],12:[function(require,module,exports){
 'use strict';
 
 var Packet              = require('../packet');
@@ -4751,6 +4749,9 @@ IoMapHandler.prototype.reject = function(err, link, p) {
     // put it back in queue.
     this.queueManager.unshift(link.ioid, p);
 
+    // unlock again
+    this.queueManager.unlock(link.ioid);
+
     // The process manager is listening for the node
     // which is already in error state
     // this.emit('error', err);
@@ -4813,7 +4814,7 @@ IoMapHandler.prototype.disconnect = function(link) {
 
   // prevents iip bug, where iip is still queued.
   // disconnect does not correctly take queueing into account.
-  // delete link.ioid;
+  delete link.ioid;
 
   // used by actor to close ports
   this.emit('disconnect', link);
@@ -5097,13 +5098,15 @@ IoMapHandler.prototype.__sendData = function(link, p) {
 
       cp = p.clone(false); // important!
 
-      console.log('INDEXXXXX', cp);
+      console.log('INDEXXXXX data', cp.data);
 
-      if (undefined === cp.data[link.source.index]) {
+      if (undefined === cp.data[link.source.get('index')]) {
         // this is allowed now for async array ports.
         // the component will only send one index at a time.
         // this is useful for routing.
         // maybe only enable this with a certain setting on the port later on.
+        console.log('INDEX UNDEFINED', link.source, cp.data);
+        // does this stop the loop, because it should not.
         return; // nop
 
       } else {
@@ -5451,7 +5454,7 @@ IoMapHandler.prototype.drop = function(packet, origin) {
 
 module.exports = IoMapHandler;
 
-},{"../packet":18,"../queue/defaultManager":20,"chix-chi":28,"events":1,"is-plain-object":35,"util":6,"uuid":42}],13:[function(require,module,exports){
+},{"../packet":18,"../queue/defaultManager":21,"chix-chi":29,"events":1,"is-plain-object":36,"util":6,"uuid":43}],13:[function(require,module,exports){
 'use strict';
 
 var util      = require('util');
@@ -5621,7 +5624,7 @@ Link.prototype.toJSON = function() {
 
 module.exports = Link;
 
-},{"./connector":9,"./setting":24,"util":6,"uuid":42}],14:[function(require,module,exports){
+},{"./connector":9,"./setting":25,"util":6,"uuid":43}],14:[function(require,module,exports){
 'use strict';
 
 /**
@@ -5686,6 +5689,7 @@ var util = require('util');
 var NodeBox = require('./sandbox/node');
 var PortBox = require('./sandbox/port');
 var xNode = require('./node/interface');
+var Port = require('./port');
 
 // Running within vm is also possible and api should stay
 // compatible with that, but disable for now.
@@ -6573,6 +6577,20 @@ Node.prototype._fillPort = function(target, p) {
 
   var res;
 
+  // this is too early, defaults do not get filled this way.
+  if(this.ports.input[target.port].async === true &&
+    !this._allConnectedSyncFilled()) {
+
+    this.event(':portReject', {
+      node: this.export(),
+      port: target.port,
+      data: p
+    });
+
+    // do not accept
+    return false;
+  }
+
   if (undefined === p.data) {
     return Error('data may not be `undefined`');
   }
@@ -6690,7 +6708,13 @@ Node.prototype._fillPort = function(target, p) {
     // this could be changed to still contain the Packet.
     this._fillInputPort(target.port, p.data);
 
-    return this._readyOrNot();
+    var ret = this._readyOrNot();
+
+    // here we should test whether it was async or not and what it returned.
+
+    // many test failures, but that's because the tests are wrong now.
+    //return Port.FILLED;
+    return ret;
 
   }
 
@@ -6810,8 +6834,7 @@ Node.prototype._readyOrNot = function() {
     // async must be as free flow as possible.
     if (util.isError(ret)) {
 
-      // this *is* a node error.
-      return this.error(ret);
+      return ret;
 
     } else {
 
@@ -6844,7 +6867,8 @@ Node.prototype._readyOrNot = function() {
                   //
                   throw Error('Input revoked, yet one async already ran');
                 }
-                return false;
+
+                return Port.INPUT_REVOKED;
               }
 
               async_ran++;
@@ -6924,6 +6948,7 @@ Node.prototype._fillDefaults = function() {
 };
 
 Node.prototype._checkIt = function(obj, key, input, context, persist) {
+  var ret;
 
   if (obj[key].properties) { //
     var init;
@@ -6935,13 +6960,20 @@ Node.prototype._checkIt = function(obj, key, input, context, persist) {
 
     for (var k in obj[key].properties) {
       if (obj[key].properties.hasOwnProperty(k)) {
-        if (!this._checkIt(
+
+        ret = !this._checkIt(
           obj[key].properties,
           k,
           input[key],
           context ? context[key] : {},
           persist ? persist[key] : {}
-        )) {
+        );
+
+        if(!ret) {
+
+          // use this again, just return the value
+          // this will have checked the nested schema definitions.
+          // return ret;
   /*
           throw new Error([
             this.identifier + ': Cannot determine input for property:',
@@ -6957,7 +6989,8 @@ Node.prototype._checkIt = function(obj, key, input, context, persist) {
       delete input[key]; // er ref will not work probably.
     }
 
-    return true;
+    // not sure, but at least should be true.
+    return Port.FILLED;
 
   } else {
 
@@ -6966,24 +6999,24 @@ Node.prototype._checkIt = function(obj, key, input, context, persist) {
       // if there is context, use that.
       if (context && context.hasOwnProperty(key)) {
         input[key] = context[key];
-        return true;
+        return Port.CONTEXT_SET;
       // check the existance of default (a value of null is also valid)
       } else if (persist && persist.hasOwnProperty(key)) {
         input[key] = persist[key];
-        return true;
+        return Port.PERSISTED_SET;
       } else if (obj[key].hasOwnProperty('default')) {
         input[key] = obj[key].default;
-        return true;
+        return Port.DEFAULT_SET;
       } else if (obj[key].required === false) {
         // filled but empty let the node handle it.
         input[key] = null;
-        return true;
+        return Port.NOT_REQUIRED;
       } else {
-        return false;
+        return Port.NOT_FILLED;
       }
 
     } else {
-      return true;
+      return Port.FILLED;
     }
 
   }
@@ -7004,12 +7037,15 @@ Node.prototype._fillDefault = function(port) {
     ) && !this.ports.input[port].async) {
 
     if (port[0] !== ':') {
+      //return Port.SYNC_PORTS_UNFULFILLED;
+
       // fail hard
       return Error(util.format(
         '%s: Cannot determine input for port `%s`',
         this.identifier,
         port
       ));
+
     }
 
   }
@@ -7123,11 +7159,14 @@ Node.prototype.freePort = function(port) {
 Node.prototype.allConnectedFilled = function() {
   for (var port in this.openPorts) {
     if (this.input[port] === undefined) {
-      return false;
+      return Node.ALL_CONNECTED_NOT_FILLED;
     }
   }
   return true;
 };
+
+Node.SYNC_NOT_FILLED          = false;
+Node.ALL_CONNECTED_NOT_FILLED = false;
 
 /**
  *
@@ -7140,13 +7179,13 @@ Node.prototype._allConnectedSyncFilled = function() {
     if (!this.ports.input[port].async) {
 
       if (this.ports.input[port].indexed) {
-        if (this.ports.input[port].type === 'object') {
+        if (/object/i.test(this.ports.input[port].type)) {
           return this._objectPortIsFilled(port);
         } else {
           return this._arrayPortIsFilled(port);
         }
       } else if (this.input[port] === undefined) {
-        return false;
+        return Node.SYNC_NOT_FILLED;
       }
     }
   }
@@ -7352,13 +7391,14 @@ Node.prototype.reset = function() {
 
 module.exports = Node;
 
-},{"./node/interface":16,"./packet":18,"./sandbox/node":22,"./sandbox/port":23,"util":6}],16:[function(require,module,exports){
+},{"./node/interface":16,"./packet":18,"./port":19,"./sandbox/node":23,"./sandbox/port":24,"util":6}],16:[function(require,module,exports){
 'use strict';
 
 /* jshint -W040 */
 
 var EventEmitter  = require('events').EventEmitter;
 var util = require('util');
+var Port = require('../port');
 var Packet = require('../packet');
 var isPlainObject = require('is-plain-object');
 var InstanceOf    = require('instance-of');
@@ -7848,7 +7888,7 @@ xNode.prototype._receive = function(p, target) {
   // queue manager could just act on the false return
   // instead of checking inputPortAvailable by itself
   var ret = this.inputPortAvailable(target);
-  if (!ret) {
+  if (!ret || util.isError(ret)) {
 
     /**
      * Port Reject Event.
@@ -7866,7 +7906,7 @@ xNode.prototype._receive = function(p, target) {
       data: p
     });
 
-    return false;
+    return ret;
 
   } else {
 
@@ -7923,7 +7963,7 @@ xNode.prototype._handleArrayPort = function(target, p) {
     if (typeof this.input[target.port][target.get('index')] !== 'undefined') {
       // input not available, it will be queued.
       // (queue manager also stores [])
-      return false;
+      return Port.INDEX_NOT_AVAILABLE;
     } else {
 
       this.event(':index', {
@@ -7944,24 +7984,24 @@ xNode.prototype._handleArrayPort = function(target, p) {
       // Unmark the port as being indexed
       delete this.ports.input[target.port].indexed;
 
+      // ok, above all return true or false
+      // this one is either returning true or an error.
       return this._fillPort(target, p);
 
     } else {
 
       // input length less than known connections length.
-      return false;
+      return Port.AWAITING_INDEX;
     }
 
   } else {
 
-    this.error(util.format(
+    throw Error(util.format(
       '%s: `%s` value arriving at Array port `%s`, but no index[] is set',
       this.identifier,
       typeof p.data,
       target.port
     ));
-
-    return false;
 
   }
 };
@@ -8029,19 +8069,17 @@ xNode.prototype._handleObjectPort = function(target, p) {
 
     } else {
       // input length less than known connections length.
-      return false;
+      return Port.AWAITING_INDEX;
     }
 
   } else {
 
-    this.error(util.format(
+    throw Error(util.format(
       '%s: `%s` value arriving at Object port `%s`, but no index[] is set',
       this.identifier,
       typeof p.data,
       target.port
     ));
-
-    return false;
 
   }
 };
@@ -8152,7 +8190,6 @@ xNode.prototype._validateInput = function(port, data) {
       msg: msg
     });
 
-    //return Error(this, msg);
     return Error(msg);
   }
 
@@ -8172,11 +8209,7 @@ xNode.prototype._validateInput = function(port, data) {
         real = tmp;
       }
     }
-/*
-    return Error(this, util.format(
-      'Expected `%s` got `%s` on port `%s`',
-      expected, real, port));
-*/
+
     return Error(util.format(
       'Expected `%s` got `%s` on port `%s`',
       expected, real, port));
@@ -8346,6 +8379,7 @@ xNode.prototype.error = function(err) {
   this.event(':error', eobj);
 
   // Used by Process Manager or whoever handles the node
+  console.warn('EMITTING ERROR', err);
   this.emit('error', eobj);
 
   return error;
@@ -8640,20 +8674,6 @@ xNode.prototype.portIsOpen = function(port) {
  * @param {String} source In case of ArrayPort
  * @public
  */
-
-/*
- * Not used yet but for clarity
- *
- * Could be used to determine the reason of rejection.
- * (if proper bitmasks are used);
- *
- * */
-var Port = {};
-Port.AVAILABLE           = true;
-Port.UNAVAILABLE         = false;
-Port.INDEX_AVAILABLE     = true;
-Port.INDEX_NOT_AVAILABLE = false;
-Port.ARRAY_PORT_FULL     = false;
 xNode.prototype.inputPortAvailable = function(target) {
 
   if (target.has('index')) {
@@ -8901,7 +8921,7 @@ xNode.prototype.portGetConnections = function(port) {
 
 module.exports = xNode;
 
-},{"../ConnectionMap":7,"../packet":18,"events":1,"instance-of":33,"is-plain-object":35,"util":6}],17:[function(require,module,exports){
+},{"../ConnectionMap":7,"../packet":18,"../port":19,"events":1,"instance-of":34,"is-plain-object":36,"util":6}],17:[function(require,module,exports){
 'use strict';
 
 /* global document */
@@ -9180,6 +9200,232 @@ Packet.prototype.has = function(prop) {
 module.exports = Packet;
 
 },{}],19:[function(require,module,exports){
+'use strict';
+
+/**
+ *
+ * Port
+ *
+ * TODO: Each object should make sense to be used seperatly.
+ * The port must solve a generic problem.
+ *
+ * First just at least refactor, so all this port logic is not
+ * inside node.js
+ *
+ * It is in fact not that hard to use this Port.
+ * As long as I keep the structure the same as the object.
+ * Only must watch out with some tests which access the internals.
+ * Which immediatly shows why you never should reach into internals.
+ *
+ * Distinct between input & output port
+ * Most methods are for input ports.
+ *
+ * Ok, I could question whether context belongs to port at all.
+ * Probably not, it just belongs to Node, yepp.
+ * Ok that's also easier to implement.
+ *
+ * Validation belongs to port, both input & output could use it.
+ * This also makes it possible to disable/enable validation per port.
+ * Most of the time you would only validate the outerparts of the graph.
+ * During debug you enable it for all ports on all nodes.
+ *
+ * It could be possible to create typed ports, this way a boolean
+ * port only has to check whether it's a boolean, right now it's done
+ * with a switch, this will make it much clearer. And ofcourse
+ * it's already necessary for ArrayPorts and ObjectPorts, so it will
+ * just be an extension of that.
+ *
+ * @example
+ *
+ *  var port = new Port();
+ *  port.receive(p);
+ *  port.receive(p); // rejected
+ *  port.read();
+ *  port.read();
+ *  port.receive(p);
+ *
+ *
+ */
+function Port() {
+
+  //if (!(this instanceof Port)) return new Port(options);
+
+  // important to just name it input for refactor.
+	// eventually can be renamed to something else.
+  //
+	// node.input[port] becomes node.getPort(port).input
+  //
+  this.input = undefined;
+
+  this._open = false;
+
+  // If async the value will pass right through a.k.a. non-blocking
+	// If there are multiple async ports, the code implementation
+	// consequently must be a state machine.
+	// async + sync is still possible. One async port is just one
+	// function call and thus not a state machine.
+  this.async = false;
+  this._connections = [];
+
+}
+
+Port.AVAILABLE           = true;
+Port.UNAVAILABLE         = false;
+Port.INDEX_AVAILABLE     = true;
+Port.INDEX_NOT_AVAILABLE = false;
+Port.ARRAY_PORT_FULL     = false;
+Port.AWAITING_INDEX      = false;
+Port.INPUT_REVOKED       = false;
+Port.CONTEXT_SET         = true;
+Port.PERSISTED_SET       = true;
+Port.DEFAULT_SET         = true;
+Port.NOT_REQUIRED        = true;
+Port.FILLED              = true;
+Port.NOT_FILLED          = false;
+
+/**
+ *
+ * Used from within a component to receive the port data
+ *
+ */
+Port.prototype.receive = function() {
+};
+
+/**
+ *
+ * Used from within a component to close the port
+ *
+ * A component receives an open port.
+ * When the port closes it's ready to be filled.
+ * This also means there are two sides on a port
+ * Open for input and open for output to the component.
+ *
+ */
+Port.prototype.close = function() {
+  this._open = false;
+};
+
+Port.prototype.open = function() {
+  this._open = true;
+};
+
+// TODO: after refactor these will end up elsewhere
+Port.prototype.hasConnection = function(link) {
+  return this._connections && this._connections.indexOf(link) >= 0;
+};
+Port.prototype.hasConnections = function() {
+  return this._connections.length > 0;
+};
+
+Port.prototype.getConnections = function() {
+  return this._connections;
+};
+
+// this seems to be a wrong check?
+// ah no, no property means not filled.
+// but this is just wrong. array port for example is not filled, if it's set.
+// it's being taken care of, but only causes more code to be necessary
+Port.prototype.isFilled = function() {
+  return this.input !== undefined;
+};
+
+Port.prototype.clearInput = function() {
+  this.input = undefined;
+};
+
+Port.prototype.isAvailable = function() {
+};
+
+// Node freePort
+Port.prototype.free = function() {
+
+  var persist = this.getOption('persist');
+  if (persist) {
+    // persist, chi, hmz, seeze to exist.
+    // but wouldn't matter much, with peristent ports.
+    // TODO: this.filled is not used anymore.
+
+    // indexes are persisted per index.
+    if (Array.isArray(persist)) {
+      for (var k in this.input) {
+        if (persist.indexOf(k) === -1) {
+          // remove
+          delete this.input[k];
+        }
+      }
+    }
+
+  } else {
+
+    // not sure, activeConnections could stay a node thing.
+
+    // this also removes context and default..
+    this.clearInput();
+
+    this.event(':freePort', {
+      node: this.export(),
+      link: this._activeConnections,
+      port: this.name
+    });
+
+    this.emit('freePort', {
+      node: this.export(),
+      link: this._activeConnections,
+      port: this.name
+    });
+
+    // delete reference to active connection (if there was one)
+    delete this._activeConnections;
+  }
+
+};
+
+//Node.prototype.getPortOption = function(type, name, opt) {
+
+// could become this.setting[opt], but that will change things too much
+Port.prototype.getOption = function(opt) {
+  if (this.hasOwnProperty(opt)) {
+    return this[opt];
+  } else {
+    return undefined;
+  }
+};
+
+/**
+ *
+ * Sets an input port option.
+ *
+ * The node schema for instance can specifiy whether a port is persistent.
+ *
+ * At the moment a connection can override these values.
+ * It's a way of saying I give you this once so take care of it.
+ *
+ */
+//Node.prototype.setPortOption = function(type, name, opt, value) {
+Port.prototype.setOption = function(opt, value) {
+  this[opt] = value;
+};
+
+//Node.prototype.setPortOptions = function(type, options) {
+Port.prototype.setOptions = function(options) {
+  var opt;
+  var port;
+  for (port in options) {
+    if (options.hasOwnProperty(port)) {
+      for (opt in options[port]) {
+        if (options[port].hasOwnProperty(opt)) {
+          if (options.hasOwnProperty(opt)) {
+            this.setOption(opt, options[opt]);
+          }
+        }
+      }
+    }
+  }
+};
+
+module.exports = Port;
+
+},{}],20:[function(require,module,exports){
 (function (process){
 'use strict';
 
@@ -9477,8 +9723,7 @@ ProcessManager.prototype.filterBy = function(prop, value) {
 module.exports = ProcessManager;
 
 }).call(this,require("uojqOp"))
-},{"events":1,"uojqOp":4,"util":6,"uuid":42}],20:[function(require,module,exports){
-(function (process){
+},{"events":1,"uojqOp":4,"util":6,"uuid":43}],21:[function(require,module,exports){
 'use strict';
 
 var util = require('util');
@@ -9575,8 +9820,12 @@ QueueManager.prototype.pound = function(id) {
 
   this.getQueue(id).pounders++;
 
-  // no reason this should be timeout.
-  process.nextTick(
+  //setImmediate(
+  // setTimeout is much more cpu friendly. setImmediate will go to
+  // a constant 100% during inifinit loop (good)
+  // So now there is one policy, keep retrying forever... :-)
+  // Means a node timeout like x seconds could be set.
+  setTimeout(
     this.pounder.bind({
       id: id,
       self: this
@@ -9630,7 +9879,15 @@ QueueManager.prototype.unshift = function(id, p) {
   var queue = this.getQueue(id);
   queue.queue.unshift(p);
 
-  this.unlock(id);
+  // this is really a problem, works perfect if there are not
+  // endless rejection, but if there are, infinit loop
+  // which can just be solved with policies and just send
+  // an error when giving up.
+  // problem is real, d3 graph example needs it set
+  // server side irc graph needs it to be off.
+  // because it takes several seconds before things are accepted.
+  //
+  //this.unlock(id);
 
 };
 
@@ -9827,8 +10084,7 @@ QueueManager.prototype.getQueues = function() {
 
 module.exports = QueueManager;
 
-}).call(this,require("uojqOp"))
-},{"uojqOp":4,"util":6}],21:[function(require,module,exports){
+},{"util":6}],22:[function(require,module,exports){
 'use strict';
 
 var DefaultContextProvider = require('./context/defaultProvider');
@@ -9938,7 +10194,7 @@ Run.prototype.handleOutput = function(data) {
 
 module.exports = Run;
 
-},{"./context/defaultProvider":10}],22:[function(require,module,exports){
+},{"./context/defaultProvider":10}],23:[function(require,module,exports){
 (function (process,global){
 'use strict';
 
@@ -10155,7 +10411,7 @@ NodeBox.prototype.run = function(bind) {
 module.exports = NodeBox;
 
 }).call(this,require("uojqOp"),typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"iobox":34,"path":3,"uojqOp":4,"util":6}],23:[function(require,module,exports){
+},{"iobox":35,"path":3,"uojqOp":4,"util":6}],24:[function(require,module,exports){
 'use strict';
 
 var NodeBox = require('./node');
@@ -10196,7 +10452,7 @@ util.inherits(PortBox, NodeBox);
 
 module.exports = PortBox;
 
-},{"./node":22,"util":6}],24:[function(require,module,exports){
+},{"./node":23,"util":6}],25:[function(require,module,exports){
 'use strict';
 
 var util         = require('util');
@@ -10277,7 +10533,7 @@ Setting.prototype.has = function(name) {
 
 module.exports = Setting;
 
-},{"events":1,"util":6}],25:[function(require,module,exports){
+},{"events":1,"util":6}],26:[function(require,module,exports){
 'use strict';
 
 var jsongate = require('json-gate');
@@ -10449,7 +10705,7 @@ module.exports = {
   nodeDefinitions: _checkIds
 };
 
-},{"../schemas/map.json":43,"../schemas/node.json":44,"json-gate":38}],"chix-flow":[function(require,module,exports){
+},{"../schemas/map.json":44,"../schemas/node.json":45,"json-gate":39}],"chix-flow":[function(require,module,exports){
 module.exports=require('jXAsbI');
 },{}],"jXAsbI":[function(require,module,exports){
 'use strict';
@@ -10476,7 +10732,7 @@ module.exports = {
   }
 };
 
-},{"./lib/actor":8,"./lib/flow":11,"./lib/link":13,"./lib/node":15,"./lib/validate":25,"./schemas/map.json":43,"./schemas/node.json":44,"./schemas/stage.json":45}],28:[function(require,module,exports){
+},{"./lib/actor":8,"./lib/flow":11,"./lib/link":13,"./lib/node":15,"./lib/validate":26,"./schemas/map.json":44,"./schemas/node.json":45,"./schemas/stage.json":46}],29:[function(require,module,exports){
 'use strict';
 
 var util         = require('util');
@@ -10719,7 +10975,7 @@ CHI.prototype.merge = function (newChi, oldChi, unique) {
 
 module.exports = CHI;
 
-},{"./group":29,"./portPointer":30,"./portSyncer":31,"./store":32,"events":1,"util":6}],29:[function(require,module,exports){
+},{"./group":30,"./portPointer":31,"./portSyncer":32,"./store":33,"events":1,"util":6}],30:[function(require,module,exports){
 'use strict';
 
 var util = require('util'),
@@ -10892,7 +11148,7 @@ Group.prototype.gid = function() {
 
 module.exports = Group;
 
-},{"events":1,"util":6,"uuid":42}],30:[function(require,module,exports){
+},{"events":1,"util":6,"uuid":43}],31:[function(require,module,exports){
 'use strict';
 
 var uuid = require('uuid').v4;
@@ -10954,7 +11210,7 @@ PortPointer.prototype.add = function(port) {
 
 module.exports = PortPointer;
 
-},{"uuid":42}],31:[function(require,module,exports){
+},{"uuid":43}],32:[function(require,module,exports){
 'use strict';
 
 ////
@@ -11058,7 +11314,7 @@ PortSyncer.prototype.add = function(link, p) {
 
 module.exports = PortSyncer;
 
-},{}],32:[function(require,module,exports){
+},{}],33:[function(require,module,exports){
 'use strict';
 
 function Store() {
@@ -11111,7 +11367,7 @@ Store.prototype.isEmpty = function() {
 
 module.exports = Store;
 
-},{}],33:[function(require,module,exports){
+},{}],34:[function(require,module,exports){
 module.exports = function InstanceOf(obj, type) {
   if(obj === null) return false;
   if(type === 'array') type = 'Array';
@@ -11126,7 +11382,7 @@ module.exports = function InstanceOf(obj, type) {
   }
 };
 
-},{}],34:[function(require,module,exports){
+},{}],35:[function(require,module,exports){
 'use strict';
 
 var util = require('util');
@@ -11309,7 +11565,7 @@ IOBox.prototype.run = function(input, bind) {
 
 module.exports = IOBox;
 
-},{"events":1,"util":6}],35:[function(require,module,exports){
+},{"events":1,"util":6}],36:[function(require,module,exports){
 /*!
  * is-plain-object <https://github.com/jonschlinkert/is-plain-object>
  *
@@ -11322,7 +11578,7 @@ module.exports = IOBox;
 module.exports = function isPlainObject(o) {
   return !!o && typeof o === 'object' && o.constructor === Object;
 };
-},{}],36:[function(require,module,exports){
+},{}],37:[function(require,module,exports){
 exports.getType = function (obj) {
 	switch (Object.prototype.toString.call(obj)) {
 		case '[object String]':
@@ -11423,7 +11679,7 @@ exports.deepEquals = function (obj1, obj2) {
 	}
 };
 
-},{}],37:[function(require,module,exports){
+},{}],38:[function(require,module,exports){
 var RE_0_TO_100 = '([1-9]?[0-9]|100)';
 var RE_0_TO_255 = '([1-9]?[0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])';
 
@@ -11519,7 +11775,7 @@ var formats = {
 
 exports.formats = formats;
 
-},{}],38:[function(require,module,exports){
+},{}],39:[function(require,module,exports){
 var validateSchema = require('./valid-schema'),
 	validateObject = require('./valid-object');
 
@@ -11536,7 +11792,7 @@ module.exports.createSchema = function (schema) {
 	return new Schema(schema);
 }
 
-},{"./valid-object":39,"./valid-schema":40}],39:[function(require,module,exports){
+},{"./valid-object":40,"./valid-schema":41}],40:[function(require,module,exports){
 var formats = require('./formats').formats;
 var common = require('./common'),
 	getType = common.getType,
@@ -11920,7 +12176,7 @@ module.exports = function(obj, schema, done) {
 	}
 };
 
-},{"./common":36,"./formats":37}],40:[function(require,module,exports){
+},{"./common":37,"./formats":38}],41:[function(require,module,exports){
 var formats = require('./formats').formats;
 var common = require('./common'),
 	getType = common.getType,
@@ -12202,7 +12458,7 @@ module.exports = function(schema) {
 	validateSchema(schema, []);
 };
 
-},{"./common":36,"./formats":37,"./valid-object":39}],41:[function(require,module,exports){
+},{"./common":37,"./formats":38,"./valid-object":40}],42:[function(require,module,exports){
 (function (global){
 
 var rng;
@@ -12237,7 +12493,7 @@ module.exports = rng;
 
 
 }).call(this,typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],42:[function(require,module,exports){
+},{}],43:[function(require,module,exports){
 //     uuid.js
 //
 //     Copyright (c) 2010-2012 Robert Kieffer
@@ -12422,7 +12678,7 @@ uuid.unparse = unparse;
 
 module.exports = uuid;
 
-},{"./rng":41}],43:[function(require,module,exports){
+},{"./rng":42}],44:[function(require,module,exports){
 module.exports={
   "type":"object",
   "title":"Chiχ Map",
@@ -12571,7 +12827,7 @@ module.exports={
   "additionalProperties": false
 }
 
-},{}],44:[function(require,module,exports){
+},{}],45:[function(require,module,exports){
 module.exports={
   "type":"object",
   "title":"Chiχ Nodes",
@@ -12649,7 +12905,7 @@ module.exports={
   "additionalProperties": false
 }
 
-},{}],45:[function(require,module,exports){
+},{}],46:[function(require,module,exports){
 module.exports={
   "type":"object",
   "title":"Chiχ Stage",
@@ -12745,7 +13001,7 @@ module.exports={
   }
 }
 
-},{}],46:[function(require,module,exports){
+},{}],47:[function(require,module,exports){
 'use strict';
 
 /**
@@ -12927,7 +13183,7 @@ module.exports = function NpmLogActorMonitor(Logger, actor) {
 
 };
 
-},{}],47:[function(require,module,exports){
+},{}],48:[function(require,module,exports){
 'use strict';
 
 /**
@@ -12967,7 +13223,7 @@ module.exports=require('HNG52E');
 exports.Actor = require('./lib/actor');
 exports.Loader = require('./lib/loader');
 
-},{"./lib/actor":46,"./lib/loader":47}],"dot-object":[function(require,module,exports){
+},{"./lib/actor":47,"./lib/loader":48}],"dot-object":[function(require,module,exports){
 module.exports=require('C/EKgi');
 },{}],"C/EKgi":[function(require,module,exports){
 'use strict';
@@ -13268,10 +13524,10 @@ module.exports = {
     'version'      : require('./version')
 };
 
-},{"./version":54}],54:[function(require,module,exports){
+},{"./version":55}],55:[function(require,module,exports){
 module.exports = require('../package.json').version;
 
-},{"../package.json":55}],55:[function(require,module,exports){
+},{"../package.json":56}],56:[function(require,module,exports){
 module.exports={
   "name": "websocket",
   "description": "Websocket Client & Server Library implementing the WebSocket protocol as specified in RFC 6455.",
@@ -13341,7 +13597,7 @@ var Loader = function() {
   // will be replaced with the json.
   this.dependencies = {"npm":{"websocket":"1.x.x","dot-object":"0.x.x"}};
   //this.nodes = ;
-  this.nodeDefinitions = {"https://serve-chix.rhcloud.com/nodes/{ns}/{name}":{"websocket":{"client":{"_id":"533eef893c8d3cd858002db4","name":"client","ns":"websocket","description":"Websocket Client","async":true,"phrases":{"active":"Creating websocket client"},"ports":{"input":{"url":{"type":"string","title":"Url","async":true},"protocol":{"title":"Protocol","type":"string","default":null},"send":{"title":"Send","type":"any","async":true}},"output":{"client":{"type":"WebSocket","title":"WebSocket"},"open":{"type":"any","title":"Open"},"close":{"type":"any","title":"Close"},"message":{"type":"any","title":"Message"},"error":{"type":"Object","title":"Error"}}},"dependencies":{"npm":{"websocket":"1.x.x"}},"fn":"on.input.url = function() {\n\n  state.client = null;\n\n  if(input.protocol) {\n    state.client = new websocket.w3cwebsocket(input.url, input.protocol);\n  } else {\n    state.client = new websocket.w3cwebsocket(input.url);\n  }\n\n  state.client.onmessage = function(event) {\n    output({ message: JSON.parse(event.data) });\n  };\n\n  state.client.onerror = function(event) {\n    output({ error: event });\n  };\n\n  state.client.onclose = function(event) {\n    output({ close: event });\n  };\n\n  state.client.onopen = function(event) {\n    output({\n      client: state.client,\n      open: event\n    });\n  };\n\n};\n\non.input.send = function(data) {\n console.log(state.client.readyState, state.client.OPEN); if(state.client && state.client.readyState === state.client.OPEN) {\n    state.client.send(JSON.stringify(data));\n  } else {\n    // should revoke input && re-queue\n    return false;\n  }\n};\n","provider":"https://serve-chix.rhcloud.com/nodes/{ns}/{name}"}},"console":{"log":{"_id":"52645993df5da0102500004e","name":"log","ns":"console","description":"Console log","async":true,"phrases":{"active":"Logging to console"},"ports":{"input":{"msg":{"type":"any","title":"Log message","description":"Logs a message to the console","async":true,"required":true}},"output":{"out":{"type":"any","title":"Log message"}}},"fn":"on.input.msg = function() {\n  console.log(data);\n  output( { out: data });\n}\n","provider":"https://serve-chix.rhcloud.com/nodes/{ns}/{name}"},"error":{"_id":"5491085d0e9c46154a015c8e","name":"error","ns":"console","description":"Console Error","async":true,"phrases":{"active":"Logging error to console"},"ports":{"input":{"msg":{"type":"any","title":"Log message","description":"Logs an error message to the console","async":true,"required":true}},"output":{"out":{"type":"any","title":"Log message"}}},"fn":"on.input.msg = function() {\n  console.error(data);\n  output( { out: data });\n};\n","provider":"https://serve-chix.rhcloud.com/nodes/{ns}/{name}"}},"dom":{"querySelector":{"_id":"527299bb30b8af4b8910216b","name":"querySelector","ns":"dom","title":"querySelector","description":"[Document query selector](https://developer.mozilla.org/en-US/docs/Web/API/document.querySelector)","expose":["document"],"phrases":{"active":"Gathering elements matching criteria: {{input.selector}}"},"ports":{"input":{"element":{"title":"Element","type":"HTMLElement","default":null},"selector":{"title":"Selector","type":"string"}},"output":{"element":{"title":"Element","type":"HTMLElement"},"selection":{"title":"Selection","type":"HTMLElement"},"error":{"title":"Error","type":"Error"}}},"fn":"var el = input.element ? input.element : document;\noutput = {\n  element: el\n};\n\nvar selection = el.querySelector(input.selector);\nif(selection) {\n  output.selection = selection;\n} else {\n  output.error = Error('Selector ' + input.selector + ' did not match');\n}\n","provider":"https://serve-chix.rhcloud.com/nodes/{ns}/{name}"}},"object":{"router":{"_id":"5491419d0e9c46154a015c8f","name":"router","ns":"object","description":"Route packets based on a path, input index will result in same index on output","async":true,"dependencies":{"npm":{"dot-object":"0.x.x"}},"phrases":{"active":"Routing"},"ports":{"input":{"in":{"title":"Input Object","type":"object","async":true},"route":{"title":"Routes","type":"array"}},"output":{"out":{"title":"Route","type":"array","async":true}}},"fn":"on.input.in = function(data) {\n\n  var out = [];\n  for(var i = 0; i < input.route.length; i++) {\n    var res = dot_object().pick(input.route[i], data);\n    // err.. does pick remove the value?\n    if(undefined !== res) {\n      out[i] = data; // send out the data, not the actual picked value.\n      output({out: out});\n      break;\n    }\n  }\n  // maybe send to error port if no matches.\n};\n","provider":"https://serve-chix.rhcloud.com/nodes/{ns}/{name}"},"set":{"_id":"52ef3631cf8e1bab142d5399","name":"set","ns":"object","async":true,"description":"Set a property on an object, or else create a new object and set the property","phrases":{"active":"Setting property {{input.key}}"},"dependencies":{"npm":{"dot-object":"0.x.x"}},"ports":{"input":{"in":{"title":"Value","type":"any","async":true},"path":{"title":"Path","type":"string"},"object":{"title":"Object","type":"object","default":null}},"output":{"out":{"title":"out","type":"object"}}},"fn":"on.input.in = function(data) {\n  var obj = input.object ? input.object : {};\n  dot_object().set(input.path, data, obj);\n  output({out: obj});\n};\n","provider":"https://serve-chix.rhcloud.com/nodes/{ns}/{name}"}},"data":{"pick":{"_id":"527d857e83f0adcc47800e7c","name":"pick","ns":"data","title":"Pick","async":true,"description":"Pick one value from an object","phrases":{"active":"Picking {{input.path}} from object"},"ports":{"input":{"in":{"title":"Object","description":"An Object, e.g { name: { first: 'John', last: 'Doe' } }","type":"object","async":true},"path":{"title":"Path","description":"Specify a path with . syntax (e.g. name.last )","type":"string","required":true}},"output":{"out":{"title":"Output","type":"any"},"error":{"title":"Error","type":"Error"}}},"dependencies":{"npm":{"dot-object":"0.x.x"}},"fn":"on.input.in = function(data) {\n  // dot_object api should be fixed..\n  var res = dot_object().pick(input.path, data);\n  if(typeof res !== 'undefined') {\n    output({out: res});\n  } else {\n    output({error: Error(input.path + ' not found')});\n  }\n};\n","provider":"https://serve-chix.rhcloud.com/nodes/{ns}/{name}"}}}};
+  this.nodeDefinitions = {"https://serve-chix.rhcloud.com/nodes/{ns}/{name}":{"websocket":{"client":{"_id":"533eef893c8d3cd858002db4","name":"client","ns":"websocket","description":"Websocket Client","async":true,"phrases":{"active":"Creating websocket client"},"ports":{"input":{"url":{"type":"string","title":"Url"},"protocol":{"title":"Protocol","type":"string","default":null},"send":{"title":"Send","type":"any","async":true}},"output":{"client":{"type":"WebSocket","title":"WebSocket"},"open":{"type":"any","title":"Open"},"close":{"type":"any","title":"Close"},"message":{"type":"any","title":"Message"},"error":{"type":"Object","title":"Error"}}},"dependencies":{"npm":{"websocket":"1.x.x"}},"fn":"on.input.send = function() {\n\n  console.log(state); if(!state.client) {\n\n    if(input.protocol) {\n      state.client = new websocket.w3cwebsocket(input.url, input.protocol);\n    } else {\n      state.client = new websocket.w3cwebsocket(input.url);\n    }\n\n    state.client.onmessage = function(event) {\n      output({ message: JSON.parse(event.data) });\n    };\n\n    state.client.onerror = function(event) {\n      output({ error: event });\n    };\n\n    state.client.onclose = function(event) {\n      output({ close: event });\n    };\n\n    state.client.onopen = function(event) {\n      output({\n        client: state.client,\n        open: event\n      });\n    };\n\n  }\n\n  if(state.client && state.client.readyState === state.client.OPEN) {\n    state.client.send(JSON.stringify(data));\n  } else {\n    // should revoke input && re-queue\n    return false;\n  }\n};\n","provider":"https://serve-chix.rhcloud.com/nodes/{ns}/{name}"}},"console":{"log":{"_id":"52645993df5da0102500004e","name":"log","ns":"console","description":"Console log","async":true,"phrases":{"active":"Logging to console"},"ports":{"input":{"msg":{"type":"any","title":"Log message","description":"Logs a message to the console","async":true,"required":true}},"output":{"out":{"type":"any","title":"Log message"}}},"fn":"on.input.msg = function() {\n  console.log(data);\n  output( { out: data });\n}\n","provider":"https://serve-chix.rhcloud.com/nodes/{ns}/{name}"},"error":{"_id":"5491085d0e9c46154a015c8e","name":"error","ns":"console","description":"Console Error","async":true,"phrases":{"active":"Logging error to console"},"ports":{"input":{"msg":{"type":"any","title":"Log message","description":"Logs an error message to the console","async":true,"required":true}},"output":{"out":{"type":"any","title":"Log message"}}},"fn":"on.input.msg = function() {\n  console.error(data);\n  output( { out: data });\n};\n","provider":"https://serve-chix.rhcloud.com/nodes/{ns}/{name}"}},"dom":{"querySelector":{"_id":"527299bb30b8af4b8910216b","name":"querySelector","ns":"dom","title":"querySelector","description":"[Document query selector](https://developer.mozilla.org/en-US/docs/Web/API/document.querySelector)","expose":["document"],"phrases":{"active":"Gathering elements matching criteria: {{input.selector}}"},"ports":{"input":{"element":{"title":"Element","type":"HTMLElement","default":null},"selector":{"title":"Selector","type":"string"}},"output":{"element":{"title":"Element","type":"HTMLElement"},"selection":{"title":"Selection","type":"HTMLElement"},"error":{"title":"Error","type":"Error"}}},"fn":"var el = input.element ? input.element : document;\noutput = {\n  element: el\n};\n\nvar selection = el.querySelector(input.selector);\nif(selection) {\n  output.selection = selection;\n} else {\n  output.error = Error('Selector ' + input.selector + ' did not match');\n}\n","provider":"https://serve-chix.rhcloud.com/nodes/{ns}/{name}"}},"object":{"router":{"_id":"5491419d0e9c46154a015c8f","name":"router","ns":"object","description":"Route packets based on a path, input index will result in same index on output. Route should be an array [path,match], multiple matchers can be added lik [[path,match],[path,match]] -> [0] route Router out [0] -> matched..","async":true,"dependencies":{"npm":{"dot-object":"0.x.x"}},"phrases":{"active":"Routing"},"ports":{"input":{"in":{"title":"Input Object","type":"object","async":true},"route":{"title":"Routes","type":"array"}},"output":{"out":{"title":"Route","type":"array","async":true},"missed":{"title":"Missed","type":"object"},"error":{"title":"Error","type":"Error"}}},"fn":"on.input.in = function(data) {\n\n  var out = [];\n  var reg;\n  var route;\n  for(var i = 0; i < input.route.length; i++) {\n    route = input.route[i];\n    if(route.length !== 2) {\n      output({\n        error: new Error('Route should be in the form [path,match]')\n      });\n    }\n    var res = dot_object().pick(route[0], data);\n    // err.. does pick remove the value?\n    if(undefined !== res) {\n      reg = new RegExp(route[1]);\n      if(reg.test(res)) {\n        out[i] = data; // send out the data, not the actual picked value.\n        output({out: out});\n        return true;\n      }\n    }\n  }\n\n  output({missed: data});\n\n};\n","provider":"https://serve-chix.rhcloud.com/nodes/{ns}/{name}"},"set":{"_id":"52ef3631cf8e1bab142d5399","name":"set","ns":"object","async":true,"description":"Set a property on an object, or else create a new object and set the property","phrases":{"active":"Setting property {{input.key}}"},"dependencies":{"npm":{"dot-object":"0.x.x"}},"ports":{"input":{"in":{"title":"Value","type":"any","async":true},"path":{"title":"Path","type":"string"},"object":{"title":"Object","type":"object","default":null}},"output":{"out":{"title":"out","type":"object"}}},"fn":"on.input.in = function(data) {\n  var obj = input.object ? input.object : {};\n  dot_object().set(input.path, data, obj);\n  output({out: obj});\n};\n","provider":"https://serve-chix.rhcloud.com/nodes/{ns}/{name}"}},"data":{"pick":{"_id":"527d857e83f0adcc47800e7c","name":"pick","ns":"data","title":"Pick","async":true,"description":"Pick one value from an object","phrases":{"active":"Picking {{input.path}} from object"},"ports":{"input":{"in":{"title":"Object","description":"An Object, e.g { name: { first: 'John', last: 'Doe' } }","type":"object","async":true},"path":{"title":"Path","description":"Specify a path with . syntax (e.g. name.last )","type":"string","required":true}},"output":{"out":{"title":"Output","type":"any"},"error":{"title":"Error","type":"Error"}}},"dependencies":{"npm":{"dot-object":"0.x.x"}},"fn":"on.input.in = function(data) {\n  // dot_object api should be fixed..\n  var res = dot_object().pick(input.path, data);\n  if(typeof res !== 'undefined') {\n    output({out: res});\n  } else {\n    output({error: Error(input.path + ' not found')});\n  }\n};\n","provider":"https://serve-chix.rhcloud.com/nodes/{ns}/{name}"}}}};
 
 };
 
@@ -13364,7 +13620,7 @@ Loader.prototype.getNodeDefinition = function(node) {
 var Flow = require('chix-flow').Flow;
 var loader = new Loader();
 
-var map = {"id":"78d3d429-38f5-4aa6-807e-359a28cbb614","type":"flow","links":[{"source":{"id":"WsClient","port":"message"},"target":{"id":"Log","port":"msg"},"metadata":{"title":"WsClient message -> msg Log"}},{"source":{"id":"WsClient","port":"open"},"target":{"id":"OpenMsg","port":"msg"},"metadata":{"title":"WsClient open -> msg OpenMsg"}},{"source":{"id":"WsClient","port":"close"},"target":{"id":"CloseMsg","port":"msg"},"metadata":{"title":"WsClient close -> msg CloseMsg"}},{"source":{"id":"WsClient","port":"error"},"target":{"id":"ErrorLog","port":"msg"},"metadata":{"title":"WsClient error -> msg ErrorLog"}},{"source":{"id":"WsClient","port":"message"},"target":{"id":"Router","port":"in"},"metadata":{"title":"WsClient message -> in Router"}},{"source":{"id":"Router","port":"out","setting":{"index":0}},"target":{"id":"getGraph","port":"in"},"metadata":{"title":"Router out -> in getGraph"}},{"source":{"id":"getGraph","port":"out"},"target":{"id":"Log","port":"msg"},"metadata":{"title":"getGraph out -> msg Log"}},{"source":{"id":"getGraph","port":"out"},"target":{"id":"Subscribe","port":"in"},"metadata":{"title":"getGraph out -> in Subscribe"}},{"source":{"id":"Subscribe","port":"out"},"target":{"id":"WsClient","port":"send"},"metadata":{"title":"Subscribe out -> send WsClient"}}],"nodes":[{"id":"WsClient","title":"WsClient","ns":"websocket","name":"client"},{"id":"Log","title":"Log","ns":"console","name":"log"},{"id":"ErrorLog","title":"ErrorLog","ns":"console","name":"error"},{"id":"BodyEl","title":"BodyEl","ns":"dom","name":"querySelector"},{"id":"OpenMsg","title":"OpenMsg","ns":"console","name":"log","context":{"msg":"Connected to websocket"}},{"id":"CloseMsg","title":"CloseMsg","ns":"console","name":"log","context":{"msg":"Disonnected from websocket"}},{"id":"Router","title":"Router","ns":"object","name":"router"},{"id":"getGraph","title":"getGraph","ns":"data","name":"pick","context":{"path":"payload.graph"}},{"id":"Subscribe","title":"Subscribe","ns":"object","name":"set","context":{"object":{"protocol":"graph","command":"subscribe"},"path":"payload.graph"}}],"title":"Dagre D3 Graph","providers":{"@":{"url":"https://serve-chix.rhcloud.com/nodes/{ns}/{name}"}}};
+var map = {"id":"660cbb09-9ec3-4bcb-9bd3-b404cb16a947","type":"flow","links":[{"source":{"id":"WsClient","port":"open"},"target":{"id":"OpenMsg","port":"msg"},"metadata":{"title":"WsClient open -> msg OpenMsg"}},{"source":{"id":"WsClient","port":"close"},"target":{"id":"CloseMsg","port":"msg"},"metadata":{"title":"WsClient close -> msg CloseMsg"}},{"source":{"id":"WsClient","port":"error"},"target":{"id":"ErrorLog","port":"msg"},"metadata":{"title":"WsClient error -> msg ErrorLog"}},{"source":{"id":"WsClient","port":"message"},"target":{"id":"Router","port":"in"},"metadata":{"title":"WsClient message -> in Router"}},{"source":{"id":"Router","port":"out","setting":{"index":0}},"target":{"id":"getGraph","port":"in"},"metadata":{"title":"Router out -> in getGraph"}},{"source":{"id":"getGraph","port":"out"},"target":{"id":"Log","port":"msg"},"metadata":{"title":"getGraph out -> msg Log"}},{"source":{"id":"getGraph","port":"out"},"target":{"id":"Subscribe","port":"in"},"metadata":{"title":"getGraph out -> in Subscribe"}},{"source":{"id":"Subscribe","port":"out"},"target":{"id":"WsClient","port":"send"},"metadata":{"title":"Subscribe out -> send WsClient"}},{"source":{"id":"getSource","port":"out","setting":{"index":1}},"target":{"id":"Log","port":"msg"},"metadata":{"title":"getSource out -> msg Log"}},{"source":{"id":"Router","port":"out","setting":{"index":1}},"target":{"id":"Log","port":"msg"},"metadata":{"title":"Router out -> msg Log"}}],"nodes":[{"id":"WsClient","title":"WsClient","ns":"websocket","name":"client","context":{"url":"ws://localhost:9000/","protocol":"noflo"}},{"id":"Log","title":"Log","ns":"console","name":"log"},{"id":"ErrorLog","title":"ErrorLog","ns":"console","name":"error"},{"id":"BodyEl","title":"BodyEl","ns":"dom","name":"querySelector"},{"id":"OpenMsg","title":"OpenMsg","ns":"console","name":"log","context":{"msg":"Connected to websocket"}},{"id":"CloseMsg","title":"CloseMsg","ns":"console","name":"log","context":{"msg":"Disonnected from websocket"}},{"id":"Router","title":"Router","ns":"object","name":"router"},{"id":"getGraph","title":"getGraph","ns":"data","name":"pick","context":{"path":"payload.graph"}},{"id":"getSource","title":"getSource","ns":"data","name":"pick","context":{"path":"payload.metadata"}},{"id":"Subscribe","title":"Subscribe","ns":"object","name":"set","context":{"object":{"protocol":"graph","command":"subscribe"},"path":"payload.graph"}}],"title":"Dagre D3 Graph","providers":{"@":{"url":"https://serve-chix.rhcloud.com/nodes/{ns}/{name}"}}};
 
 var actor;
 window.Actor = actor = Flow.create(map, loader);
@@ -13375,7 +13631,7 @@ monitor(console, actor);
 function onDeviceReady() {
 actor.run();
 actor.push();
-actor.sendIIPs([{"source":{"id":"78d3d429-38f5-4aa6-807e-359a28cbb614","port":":iip"},"target":{"id":"BodyEl","port":"selector"},"metadata":{"title":"Dagre D3 Graph :iip -> selector BodyEl"},"data":"body"},{"source":{"id":"78d3d429-38f5-4aa6-807e-359a28cbb614","port":":iip"},"target":{"id":"WsClient","port":"url"},"metadata":{"title":"Dagre D3 Graph :iip -> url WsClient"},"data":"ws://localhost:9000/"},{"source":{"id":"78d3d429-38f5-4aa6-807e-359a28cbb614","port":":iip"},"target":{"id":"WsClient","port":"protocol"},"metadata":{"title":"Dagre D3 Graph :iip -> protocol WsClient"},"data":"noflo"},{"source":{"id":"78d3d429-38f5-4aa6-807e-359a28cbb614","port":":iip"},"target":{"id":"WsClient","port":"send"},"metadata":{"title":"Dagre D3 Graph :iip -> send WsClient"},"data":{"protocol":"runtime","command":"getruntime","payload":{}}},{"source":{"id":"78d3d429-38f5-4aa6-807e-359a28cbb614","port":":iip"},"target":{"id":"Router","port":"route","setting":{"index":0}},"metadata":{"title":"Dagre D3 Graph :iip -> route Router"},"data":["command","runtime"]}]);
+actor.sendIIPs([{"source":{"id":"660cbb09-9ec3-4bcb-9bd3-b404cb16a947","port":":iip"},"target":{"id":"BodyEl","port":"selector"},"metadata":{"title":"Dagre D3 Graph :iip -> selector BodyEl"},"data":"body"},{"source":{"id":"660cbb09-9ec3-4bcb-9bd3-b404cb16a947","port":":iip"},"target":{"id":"WsClient","port":"send"},"metadata":{"title":"Dagre D3 Graph :iip -> send WsClient"},"data":{"protocol":"runtime","command":"getruntime","payload":{}}},{"source":{"id":"660cbb09-9ec3-4bcb-9bd3-b404cb16a947","port":":iip"},"target":{"id":"Router","port":"route","setting":{"index":0,"persist":true}},"metadata":{"title":"Dagre D3 Graph :iip -> route Router"},"data":["command","runtime"]}]);
 
 };
 

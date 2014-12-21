@@ -10,13 +10,13 @@ BodyEl(dom/querySelector)
 'body'           -> selector BodyEl
 #BodyEl selection -> element Graph
 
-'ws://localhost:9000/' -> url WsClient
-'noflo' -> protocol WsClient
+'ws://localhost:9000/' -> @url WsClient
+'noflo' -> @protocol WsClient
 
 'Connected to websocket'     -> @msg OpenMsg(console/log)
 'Disonnected from websocket' -> @msg CloseMsg(console/log)
 
-WsClient message -> msg Log
+#WsClient message -> msg Log
 WsClient open    -> msg OpenMsg
 WsClient close   -> msg CloseMsg
 WsClient error   -> msg ErrorLog
@@ -38,9 +38,32 @@ WsClient message -> in Router
 # didn't do the multimatch thing yet..
 
 # Subscribe on runtime message
-["command","runtime"] -> [0] route Router
 Router out [0] -> in getGraph out -> msg Log
+# subscribe werkt ook
 getGraph out   -> in Subscribe out -> send WsClient
+
+# Handle nodes
+getSource(data/pick)
+
+# dit lijkt niet te werken
+/*
+[
+ ["command","runtime"],
+ ["graph","addnode"]
+] ->
+*/
+
+["command", "runtime"] -> [0] ^route Router
+#Router out [1] -> msg Log
+'payload.metadata' -> @path getSource
+#Router out [1] -> in getSource out -> msg Log
+getSource out [1] -> msg Log
+Router out [1] -> msg Log
+#getSource out   -> in Subscribe out -> send WsClient
+#setNode Graph
+
+# ok the, unlock issue.
+# neh first the index issue.
 
 # Create Subscribe message
 {
@@ -49,5 +72,4 @@ getGraph out   -> in Subscribe out -> send WsClient
 } -> @object Subscribe(object/set)
 'payload.graph' -> @path Subscribe
 
-#setNode Graph
 #setEdge Graph
