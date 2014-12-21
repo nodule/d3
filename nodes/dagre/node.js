@@ -1,8 +1,3 @@
-state.zoom = d3.behavior.zoom().on('zoom', function() {
-  state.inner.attr('transform', 'translate(' + d3.event.translate + ')' +
-    'scale(' + d3.event.scale + ')');
-});
-
 state.scaleToFit = function(isUpdate) {
 
  // Zoom and scale to fit
@@ -21,6 +16,12 @@ state.scaleToFit = function(isUpdate) {
 };
 
 on.input.start = function() {
+
+  state.zoom = d3.behavior.zoom().on('zoom', function() {
+    state.inner.attr('transform', 'translate(' + d3.event.translate + ')' +
+      'scale(' + d3.event.scale + ')');
+  });
+
   state.svg.call(state.zoom);
 };
 

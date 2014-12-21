@@ -218,9 +218,6 @@ module.exports = {
     output: {}
   },
   state: {
-    zoom: function zoom(g) {
-      g.on(mousedown, mousedowned).on(d3_behavior_zoomWheel + ".zoom", mousewheeled).on("dblclick.zoom", dblclicked).on(touchstart, touchstarted);
-    },
     scaleToFit: function(isUpdate) {
 
       // Zoom and scale to fit
