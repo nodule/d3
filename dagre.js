@@ -234,5 +234,21 @@ module.exports = {
       state.zoom.event(isUpdate ? state.svg.transition().duration(500) : d3.select("svg"));
 
     }
+  },
+  on: {
+    start: function __ONSTART__(data, x, source, state, input, output, d3, dagre_d3) {
+      var r = function() {
+        state.zoom = d3.behavior.zoom().on('zoom', function() {
+          state.inner.attr('transform', 'translate(' + d3.event.translate + ')' +
+            'scale(' + d3.event.scale + ')');
+        });
+
+        state.svg.call(state.zoom);
+      }.call(this);
+      return {
+        state: state,
+        return: r
+      };
+    }
   }
 }

@@ -15,7 +15,7 @@ state.scaleToFit = function(isUpdate) {
 
 };
 
-on.input.start = function() {
+on.start = function() {
 
   state.zoom = d3.behavior.zoom().on('zoom', function() {
     state.inner.attr('transform', 'translate(' + d3.event.translate + ')' +
