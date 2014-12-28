@@ -1,5 +1,5 @@
 {
-  "name": "nodule-d3",
+  "name": "chix-d3",
   "description": "D3 for Chiχ",
   "author": "Rob Halff <rob.halff@gmail.com>",
   "version": "0.0.2",
@@ -11,7 +11,6 @@
   "engines": {
     "node": ">=0.6.0"
   },
-  "main": "x",
   "scripts": {
     "test": "chit -r"
   },
