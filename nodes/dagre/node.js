@@ -26,12 +26,12 @@ on.start = function() {
 };
 
 // parent html element
-on.input.element = function(data) {
+on.input.element = function() {
   // re-init entire graph.
   var s = document.createElement('svg');
   state.g = document.createElement('g');
   s.appendChild(state.g);
-  data.appendChild(s);
+  input.element.appendChild(s);
   state.svg = d3.select(s);
   state.inner = state.svg.select(s.firstChild);
 
@@ -45,7 +45,7 @@ on.input.element = function(data) {
 // will feed the new status each and every time.
 on.input.setNode = function(node) {
  // not sure..
- state.g.setNode(data.id, {
+ state.g.setNode(input.setNode.id, {
    labelType: "html",
    label: html,
    rx: 5,
