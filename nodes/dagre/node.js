@@ -31,13 +31,13 @@ on.input.element = function() {
   var s = document.createElement('svg');
   state.g = document.createElement('g');
   s.appendChild(state.g);
-  input.element.appendChild(s);
+  $.element.appendChild(s);
   state.svg = d3.select(s);
   state.inner = state.svg.select(s.firstChild);
 
   state.render = new dagreD3.render();
   state.graph = new dagreD3.graphlib.Graph();
-  state.graph.setGraph(input.options);
+  state.graph.setGraph($.options);
 };
 
 // could `stream` the nodes through
@@ -45,7 +45,7 @@ on.input.element = function() {
 // will feed the new status each and every time.
 on.input.setNode = function(node) {
  // not sure..
- state.g.setNode(input.setNode.id, {
+ state.g.setNode($.setNode.id, {
    labelType: "html",
    label: html,
    rx: 5,
