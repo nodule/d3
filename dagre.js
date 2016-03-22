@@ -23,13 +23,13 @@ module.exports = {
             var s = document.createElement('svg');
             state.g = document.createElement('g');
             s.appendChild(state.g);
-            data.appendChild(s);
+            $.element.appendChild(s);
             state.svg = d3.select(s);
             state.inner = state.svg.select(s.firstChild);
 
             state.render = new dagreD3.render();
             state.graph = new dagreD3.graphlib.Graph();
-            state.graph.setGraph(input.options);
+            state.graph.setGraph($.options);
           }.call(this);
           return {
             state: state,
@@ -86,7 +86,7 @@ module.exports = {
         fn: function __SETNODE__(data, x, source, state, input, output, d3, dagre_d3) {
           var r = function() {
             // not sure..
-            state.g.setNode(data.id, {
+            state.g.setNode($.setNode.id, {
               labelType: "html",
               label: html,
               rx: 5,
