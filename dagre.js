@@ -17,7 +17,7 @@ module.exports = {
       element: {
         title: "Element",
         type: "HTMLElement",
-        fn: function __ELEMENT__(data, x, source, state, input, output, d3, dagre_d3) {
+        fn: function __ELEMENT__(data, source, state, input, $, output, d3, dagre_d3) {
           var r = function() {
             // re-init entire graph.
             var s = document.createElement('svg');
@@ -83,7 +83,7 @@ module.exports = {
             type: "string"
           }
         },
-        fn: function __SETNODE__(data, x, source, state, input, output, d3, dagre_d3) {
+        fn: function __SETNODE__(data, source, state, input, $, output, d3, dagre_d3) {
           var r = function() {
             // not sure..
             state.g.setNode($.setNode.id, {
@@ -124,7 +124,7 @@ module.exports = {
             required: ["pid"]
           }]
         },
-        fn: function __REMOVENODE__(data, x, source, state, input, output, d3, dagre_d3) {
+        fn: function __REMOVENODE__(data, source, state, input, $, output, d3, dagre_d3) {
           var r = function() {
             state.g.removeNode(node.pid || node.id);
           }.call(this);
@@ -155,7 +155,7 @@ module.exports = {
             required: ["pid"]
           }]
         },
-        fn: function __REMOVEEDGE__(data, x, source, state, input, output, d3, dagre_d3) {
+        fn: function __REMOVEEDGE__(data, source, state, input, $, output, d3, dagre_d3) {
           var r = function() {
             state.g.removeEdge(link);
           }.call(this);
@@ -199,7 +199,7 @@ module.exports = {
             }
           }
         },
-        fn: function __SETEDGE__(data, x, source, state, input, output, d3, dagre_d3) {
+        fn: function __SETEDGE__(data, source, state, input, $, output, d3, dagre_d3) {
           var r = function() {
             state.g.setEdge(link.source.id, link.target.id, {
               label: link.source.port + '/' + link.target.port,
@@ -236,7 +236,7 @@ module.exports = {
     }
   },
   on: {
-    start: function __ONSTART__(data, x, source, state, input, output, d3, dagre_d3) {
+    start: function __ONSTART__(data, source, state, input, $, output, d3, dagre_d3) {
       var r = function() {
         state.zoom = d3.behavior.zoom().on('zoom', function() {
           state.inner.attr('transform', 'translate(' + d3.event.translate + ')' +
